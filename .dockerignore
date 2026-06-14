@@ -34,9 +34,10 @@ htmlcov/
 # Node (only needed at build time, not in final image)
 node_modules/
 
-# Docs
+# Docs (exclude except skill definitions)
 *.md
 !AGENTS.md
+!**/SKILL.md
 
 # CI
 .github/

@@ -68,7 +68,7 @@ RUN chmod +x /entrypoint.sh
 
 # Wire doc_tools into nanobot's auto-discovery path
 RUN cp src/doc_rag/nanobot_doc_tools.py nanobot-main/nanobot/agent/tools/doc_tools.py \
-    && cp -r skills/document-qa nanobot-main/nanobot/skills/ || true
+    && cp -r skills/document-qa nanobot-main/nanobot/skills/
 
 # Runtime directories
 RUN mkdir -p /app/doc_workspace /home/docrag/.nanobot \

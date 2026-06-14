@@ -1,0 +1,64 @@
+[project]
+name = "doc-rag"
+version = "0.1.0"
+description = "Enterprise document RAG system: PDF chunking by TOC hierarchy + LLM QA via nanobot WebUI"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "doc-rag contributors" },
+]
+keywords = ["rag", "document-qa", "pdf", "llm", "pageindex", "nanobot"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "pageindex",
+    "nanobot-ai",
+]
+
+[project.scripts]
+doc-index = "doc_rag.cli:index_main"
+doc-gateway = "doc_rag.cli:gateway_main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0,<10.0.0",
+    "pytest-asyncio>=1.0.0,<2.0.0",
+    "ruff>=0.1.0",
+]
+api = [
+    "aiohttp>=3.9.0,<4.0.0",
+]
+
+[tool.uv.sources]
+pageindex = { path = "PageIndex-main" }
+nanobot-ai = { path = "nanobot-main" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0,<10.0.0",
+    "pytest-asyncio>=1.0.0,<2.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doc_rag"]
+
+[tool.hatch.build.targets.wheel.sources]
+"doc_rag" = "src/doc_rag"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]

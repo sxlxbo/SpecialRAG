@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+/dist/
+/build/
+.venv/
+*.egg
+
+# Node / WebUI build cache
+node_modules/
+.npm/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+credentials.json
+
+# Docker
+*.log
+
+# Test / coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Upstream large files (not needed for runtime)
+PageIndex-main/examples/documents/
+nanobot-main/case/
+nanobot-main/images/
+nanobot-main/docs/
+
+# Workspace data (user's indexed documents)
+doc_workspace/
+
+# Claude Code
+.claude/
+
+# nanobot runtime
+.nanobot/

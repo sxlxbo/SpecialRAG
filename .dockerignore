@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+*.egg-info
+dist/
+build/
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Test / dev artifacts
+tests/
+htmlcov/
+.coverage
+
+# Node (only needed at build time, not in final image)
+node_modules/
+
+# Docs
+*.md
+!AGENTS.md
+
+# CI
+.github/

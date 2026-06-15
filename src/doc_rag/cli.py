@@ -88,6 +88,10 @@ def gateway_main():
     # Set env vars so nanobot picks them up:
     os.environ.setdefault("DOC_WORKSPACE", workspace)
 
-    from nanobot.cli.commands import app
-    sys.argv = ["nanobot", "gateway"]
-    app()
+    from nanobot.config.loader import load_config, resolve_config_env_vars
+    from nanobot.cli.commands import _run_gateway
+
+    cfg = resolve_config_env_vars(load_config())
+    cfg.gateway.host = host
+    cfg.gateway.port = port
+    _run_gateway(cfg, port=port, health_server_enabled=False)

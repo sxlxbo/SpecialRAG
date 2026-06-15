@@ -29,6 +29,7 @@ credentials.json
 
 # Docker
 *.log
+logs/
 
 # Test / coverage
 htmlcov/

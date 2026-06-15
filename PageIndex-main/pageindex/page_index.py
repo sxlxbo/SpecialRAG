@@ -9,6 +9,150 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+# ── Regex-based TOC parsing (fast path, no LLM) ─────────────────────────────
+# Matches: chapter_number Chinese_title ..... page_number
+# e.g. "5.2 系统设计 ............................. 42"
+TOC_LINE_PATTERN = re.compile(
+    r'^\s*(\d+(?:\.\d+)*)\s*(.+?)\s*\.{2,}\s*(\d+)\s*$',
+    re.MULTILINE
+)
+
+# Max pages to scan for TOC (configurable via opt, defaults to 20)
+DEFAULT_TOC_MAX_SCAN_PAGES = 20
+# Minimum TOC-pattern matches on a page to treat it as a TOC page
+MIN_TOC_ENTRIES_PER_PAGE = 3
+
+
+def find_toc_pages_by_regex(page_list, max_scan_pages=DEFAULT_TOC_MAX_SCAN_PAGES,
+                             logger=None, start_page=0):
+    """Scan first `max_scan_pages` pages for TOC patterns using regex (no LLM)."""
+    toc_page_indices = []
+    end = min(start_page + max_scan_pages, len(page_list))
+    for i in range(start_page, end):
+        page_text = page_list[i][0]
+        matches = TOC_LINE_PATTERN.findall(page_text)
+        if len(matches) >= MIN_TOC_ENTRIES_PER_PAGE:
+            toc_page_indices.append(i)
+            if logger:
+                logger.info(f'[regex] TOC page {i}: {len(matches)} entries matched')
+    return toc_page_indices
+
+
+def parse_toc_by_regex(toc_text):
+    """Parse concatenated TOC page text into structured entries (no LLM).
+    Returns list of {structure, title, page}.
+    """
+    entries = []
+    seen = set()  # deduplicate by structure
+    for structure, title, page_str in TOC_LINE_PATTERN.findall(toc_text):
+        struct = structure.strip()
+        if struct in seen:
+            continue
+        seen.add(struct)
+        entries.append({
+            'structure': struct,
+            'title': title.strip(),
+            'page': int(page_str)
+        })
+    return entries
+
+
+def build_toc_regex_result(page_list, max_scan_pages=DEFAULT_TOC_MAX_SCAN_PAGES,
+                            logger=None):
+    """Try to detect and parse TOC using regex only.
+    Returns {toc_content, toc_page_list, toc_entries, page_index_given_in_toc}
+    or None if not found.
+    """
+    toc_page_indices = find_toc_pages_by_regex(page_list, max_scan_pages, logger)
+    if not toc_page_indices:
+        return None
+
+    toc_text = ""
+    for idx in toc_page_indices:
+        toc_text += page_list[idx][0] + "\n"
+
+    entries = parse_toc_by_regex(toc_text)
+    if len(entries) < MIN_TOC_ENTRIES_PER_PAGE:
+        return None
+
+    if logger:
+        logger.info(f'[regex] Parsed {len(entries)} TOC entries from {len(toc_page_indices)} pages')
+        for e in entries[:5]:
+            logger.info(f'  {e["structure"]} {e["title"]} -> page {e["page"]}')
+
+    return {
+        'toc_content': toc_text,
+        'toc_page_list': toc_page_indices,
+        'toc_entries': entries,
+        'page_index_given_in_toc': 'yes'
+    }
+
+
+def calculate_page_offset_simple(page_list, toc_entries, toc_page_list,
+                                  start_index=1, check_pages=15, logger=None):
+    """Calculate physical_offset = physical_page - logical_page by matching
+    a few TOC entry titles against actual page text after the TOC (no LLM)."""
+    content_start = toc_page_list[-1] + start_index
+    search_end = min(content_start + check_pages, len(page_list) + start_index - 1)
+
+    sample = toc_entries[:min(8, len(toc_entries))]
+    offsets = []
+
+    for entry in sample:
+        logical_page = entry['page']
+        # Use first 6+ chars of title as fingerprint
+        fingerprint = entry['title'][:8] if len(entry['title']) >= 8 else entry['title']
+        if len(fingerprint) < 3:
+            continue
+        for phys_idx in range(content_start, search_end + 1):
+            list_idx = phys_idx - start_index
+            if list_idx < 0 or list_idx >= len(page_list):
+                continue
+            if fingerprint in page_list[list_idx][0]:
+                offset = phys_idx - logical_page
+                offsets.append(offset)
+                if logger:
+                    logger.info(f'[regex] Matched "{entry["title"][:30]}" '
+                                f'physical={phys_idx} logical={logical_page} offset={offset}')
+                break
+
+    if not offsets:
+        # Fallback: offset = TOC pages count + 1 (rough estimate)
+        fallback = len(toc_page_list)
+        if logger:
+            logger.info(f'[regex] No matches found, fallback offset={fallback}')
+        return fallback
+
+    # Most common offset
+    best_offset = max(set(offsets), key=offsets.count)
+    return best_offset
+
+
+def process_toc_regex(toc_entries, toc_page_list, page_list,
+                       start_index=1, logger=None):
+    """Process regex-parsed TOC entries into final structure with physical_index.
+    Replaces the entire LLM-based process_toc_with_page_numbers chain.
+    """
+    offset = calculate_page_offset_simple(
+        page_list, toc_entries, toc_page_list,
+        start_index=start_index, logger=logger
+    )
+
+    result = []
+    for entry in toc_entries:
+        item = {
+            'structure': entry['structure'],
+            'title': entry['title'],
+            'physical_index': entry['page'] + offset,
+        }
+        result.append(item)
+
+    if logger:
+        logger.info(f'[regex] Built {len(result)} entries with offset={offset}')
+
+    return result
+
+
 ################### check title in page #########################################################
 async def check_title_appearance(item, page_list, start_index=1, model=None):    
     title=item['title']
@@ -694,6 +838,15 @@ def process_none_page_numbers(toc_items, page_list, start_index=1, model=None):
 
 
 def check_toc(page_list, opt=None):
+    # ── Fast path: regex-based TOC detection (no LLM) ──
+    toc_max_scan = getattr(opt, 'toc_max_scan_pages', DEFAULT_TOC_MAX_SCAN_PAGES)
+    regex_result = build_toc_regex_result(page_list, max_scan_pages=toc_max_scan)
+    if regex_result is not None:
+        print(f'[regex] TOC found with {len(regex_result["toc_entries"])} entries (regex fast path)')
+        return regex_result
+
+    # ── Slow path: LLM-based TOC detection ──
+    print('[regex] No TOC found by regex, falling back to LLM...')
     toc_page_list = find_toc_pages(start_page_index=0, page_list=page_list, opt=opt)
     if len(toc_page_list) == 0:
         print('no toc found')
@@ -707,17 +860,17 @@ def check_toc(page_list, opt=None):
             return {'toc_content': toc_json['toc_content'], 'toc_page_list': toc_page_list, 'page_index_given_in_toc': 'yes'}
         else:
             current_start_index = toc_page_list[-1] + 1
-            
-            while (toc_json['page_index_given_in_toc'] == 'no' and 
-                   current_start_index < len(page_list) and 
+
+            while (toc_json['page_index_given_in_toc'] == 'no' and
+                   current_start_index < len(page_list) and
                    current_start_index < opt.toc_check_page_num):
-                
+
                 additional_toc_pages = find_toc_pages(
                     start_page_index=current_start_index,
                     page_list=page_list,
                     opt=opt
                 )
-                
+
                 if len(additional_toc_pages) == 0:
                     break
 
@@ -1030,36 +1183,46 @@ async def tree_parser(page_list, opt, doc=None, logger=None):
     check_toc_result = check_toc(page_list, opt)
     logger.info(check_toc_result)
 
-    if check_toc_result.get("toc_content") and check_toc_result["toc_content"].strip() and check_toc_result["page_index_given_in_toc"] == "yes":
+    # ── Fast path: regex-parsed TOC with page numbers ──
+    if check_toc_result.get("toc_entries") and check_toc_result["page_index_given_in_toc"] == "yes":
+        logger.info('[regex] Using regex fast path for TOC processing')
+        toc_with_page_number = process_toc_regex(
+            check_toc_result['toc_entries'],
+            check_toc_result['toc_page_list'],
+            page_list,
+            start_index=1,
+            logger=logger
+        )
+    elif check_toc_result.get("toc_content") and check_toc_result["toc_content"].strip() and check_toc_result["page_index_given_in_toc"] == "yes":
         toc_with_page_number = await meta_processor(
-            page_list, 
-            mode='process_toc_with_page_numbers', 
-            start_index=1, 
-            toc_content=check_toc_result['toc_content'], 
-            toc_page_list=check_toc_result['toc_page_list'], 
+            page_list,
+            mode='process_toc_with_page_numbers',
+            start_index=1,
+            toc_content=check_toc_result['toc_content'],
+            toc_page_list=check_toc_result['toc_page_list'],
             opt=opt,
             logger=logger)
     else:
         toc_with_page_number = await meta_processor(
-            page_list, 
-            mode='process_no_toc', 
-            start_index=1, 
+            page_list,
+            mode='process_no_toc',
+            start_index=1,
             opt=opt,
             logger=logger)
 
     toc_with_page_number = add_preface_if_needed(toc_with_page_number)
     toc_with_page_number = await check_title_appearance_in_start_concurrent(toc_with_page_number, page_list, model=opt.model, logger=logger)
-    
+
     # Filter out items with None physical_index before post_processings
     valid_toc_items = [item for item in toc_with_page_number if item.get('physical_index') is not None]
-    
+
     toc_tree = post_processing(valid_toc_items, len(page_list))
     tasks = [
         process_large_node_recursively(node, page_list, opt, logger=logger)
         for node in toc_tree
     ]
     await asyncio.gather(*tasks)
-    
+
     return toc_tree
 
 

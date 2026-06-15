@@ -588,10 +588,10 @@
     "loadingConversation": "Loading conversation…",
     "empty": {
       "greetings": {
-        "workOn": "What should we work on?",
-        "start": "Where should we start?",
-        "build": "What are we building today?",
-        "tackle": "What should we tackle together?"
+        "workOn": "欢迎使用xx内部智能问答系统",
+        "start": "欢迎使用xx内部智能问答系统",
+        "build": "欢迎使用xx内部智能问答系统",
+        "tackle": "欢迎使用xx内部智能问答系统"
       },
       "quickActions": {
         "plan": {
@@ -677,8 +677,8 @@
       }
     },
     "composer": {
-      "placeholderThread": "Type your message…",
-      "placeholderHero": "Ask anything...",
+      "placeholderThread": "请提供文档名称和具体问题…",
+      "placeholderHero": "输入文档名称和具体问题...",
       "placeholderOpening": "Opening a new chat…",
       "placeholderStreaming": "Model is responding…",
       "inputAria": "Message input",

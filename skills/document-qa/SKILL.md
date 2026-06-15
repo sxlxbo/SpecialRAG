@@ -1,6 +1,7 @@
 ---
 name: document-qa
 description: Answer questions about indexed documents (PDF, Markdown) using hierarchical retrieval. The agent must retrieve relevant sections via doc_structure/doc_search/doc_chunk before answering.
+always: true
 metadata:
   nanobot:
     emoji: "📄"

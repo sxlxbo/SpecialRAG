@@ -1,6 +1,7 @@
 import litellm
 import logging
 import os
+import re
 import textwrap
 from datetime import datetime
 import time
@@ -23,10 +24,15 @@ if not os.getenv("OPENAI_API_KEY") and os.getenv("CHATGPT_API_KEY"):
 
 litellm.drop_params = True
 
+# Models that LiteLLM can tokenize locally (tiktoken). DeepSeek and other
+# providers lack local tokenizers, causing litellm.token_counter to hang.
+_TOKENIZER_MODEL = "gpt-4o"
+
+
 def count_tokens(text, model=None):
     if not text:
         return 0
-    return litellm.token_counter(model=model, text=text)
+    return litellm.token_counter(model=_TOKENIZER_MODEL, text=text)
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
@@ -391,7 +397,7 @@ def get_page_tokens(pdf_path, model=None, pdf_parser="PyPDF2"):
         for page_num in range(len(pdf_reader.pages)):
             page = pdf_reader.pages[page_num]
             page_text = page.extract_text()
-            token_length = litellm.token_counter(model=model, text=page_text)
+            token_length = litellm.token_counter(model=_TOKENIZER_MODEL, text=page_text)
             page_list.append((page_text, token_length))
         return page_list
     elif pdf_parser == "PyMuPDF":
@@ -403,7 +409,7 @@ def get_page_tokens(pdf_path, model=None, pdf_parser="PyPDF2"):
         page_list = []
         for page in doc:
             page_text = page.get_text()
-            token_length = litellm.token_counter(model=model, text=page_text)
+            token_length = litellm.token_counter(model=_TOKENIZER_MODEL, text=page_text)
             page_list.append((page_text, token_length))
         return page_list
     else:
@@ -411,17 +417,37 @@ def get_page_tokens(pdf_path, model=None, pdf_parser="PyPDF2"):
 
         
 
+def clean_extracted_text(text):
+    """Clean up PDF-extracted text formatting."""
+    if not text:
+        return text
+    # Collapse 3+ consecutive newlines into exactly 2 (one blank line separation)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # Merge fragmented dot-leader groups into a single clean dot leader
+    # e.g. " ........  ........  .....  " -> " .............. "
+    text = re.sub(
+        r'((?: \.{2,}){2,})',
+        lambda m: ' ' + '.' * min(60, len(m.group(1).replace(' ', ''))) + ' ',
+        text,
+    )
+    # Strip trailing whitespace on each line
+    text = re.sub(r'[ \t]+\n', '\n', text)
+    # Collapse lines that are purely whitespace
+    text = re.sub(r'\n[ \t]+\n', '\n\n', text)
+    return text
+
+
 def get_text_of_pdf_pages(pdf_pages, start_page, end_page):
     text = ""
     for page_num in range(start_page-1, end_page):
         text += pdf_pages[page_num][0]
-    return text
+    return clean_extracted_text(text)
 
 def get_text_of_pdf_pages_with_labels(pdf_pages, start_page, end_page):
     text = ""
     for page_num in range(start_page-1, end_page):
         text += f"<physical_index_{page_num+1}>\n{pdf_pages[page_num][0]}\n<physical_index_{page_num+1}>\n"
-    return text
+    return clean_extracted_text(text)
 
 def get_number_of_pages(pdf_path):
     pdf_reader = PyPDF2.PdfReader(pdf_path)

@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Moon, PanelLeft, Sun } from "lucide-react";
+import { Bot, Moon, PanelLeft, Sparkles, Sun, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DeleteConfirm } from "@/components/DeleteConfirm";
 import { RenameChatDialog } from "@/components/RenameChatDialog";
@@ -15,6 +15,13 @@ import { SessionSearchDialog } from "@/components/SessionSearchDialog";
 import { SettingsView, type SettingsSectionKey } from "@/components/settings/SettingsView";
 import { ThreadShell } from "@/components/thread/ThreadShell";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { useSessions } from "@/hooks/useSessions";
 import { useDeferredTitleRefresh } from "@/hooks/useDeferredTitleRefresh";
@@ -568,6 +575,15 @@ function Shell({
   const restartSawDisconnectRef = useRef(false);
   const [restartToast, setRestartToast] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const WELCOME_DAILY_KEY = `nanobot_welcome_${todayDate}`;
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(WELCOME_DAILY_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
   const [runningChatIds, setRunningChatIds] = useState<Set<string>>(() => new Set());
   const [completedChatIds, setCompletedChatIds] = useState<Set<string>>(readCompletedRunChatIds);
   const [workspaces, setWorkspaces] = useState<WorkspacesPayload | null>(null);
@@ -1601,6 +1617,75 @@ function Shell({
           onCancel={() => setPendingProjectRename(null)}
           onConfirm={onConfirmProjectRename}
         />
+        <Dialog
+          open={welcomeOpen}
+          onOpenChange={(open) => setWelcomeOpen(open)}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-2xl !gap-6 !p-8"
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader className="!space-y-4">
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-pulse rounded-full bg-primary/20 blur-xl" />
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary/30 bg-background shadow-lg shadow-primary/20">
+                    <Bot className="h-10 w-10 text-primary" />
+                  </div>
+                </div>
+              </div>
+              <DialogTitle className="text-center text-2xl">
+                <span className="inline-flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-yellow-400" />
+                  欢迎使用xx内部智能问答系统
+                  <Sparkles className="h-5 w-5 text-yellow-400" />
+                </span>
+              </DialogTitle>
+              <DialogDescription className="text-center text-base leading-relaxed">
+                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/30 p-5 text-left">
+                  <div className="flex items-start gap-3">
+                    <Zap className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                    <span className="text-xl font-black golden-shimmer">提问时请尽量带上<strong className="text-primary">文档名称</strong>以及<strong className="text-primary">具体的问题</strong></span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>系统会自动检索相关文档内容，为你提供准确的回答</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>回答末尾会标注参考来源，方便你核实原文</span>
+                  </div>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="rounded-full px-8"
+                onClick={() => setWelcomeOpen(false)}
+              >
+                我知道了
+              </Button>
+              <Button
+                size="lg"
+                className="rounded-full px-8"
+                onClick={() => {
+                  try {
+                    window.localStorage.setItem(WELCOME_DAILY_KEY, "1");
+                  } catch {
+                    // ignore
+                  }
+                  setWelcomeOpen(false);
+                }}
+              >
+                我知道了，今日不再弹出
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
         {restartToast ? (
           <div
             role="status"

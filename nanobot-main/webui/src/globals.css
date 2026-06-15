@@ -487,6 +487,32 @@
     );
     animation: cli-app-linked-sheen 1.25s ease-out 1;
   }
+
+  @keyframes golden-shimmer {
+    0%, 100% {
+      text-shadow:
+        0 0 4px rgba(251, 191, 36, 0.4),
+        0 0 8px rgba(251, 191, 36, 0.2),
+        0 0 12px rgba(251, 191, 36, 0.1);
+    }
+    33% {
+      text-shadow:
+        0 0 8px rgba(251, 191, 36, 0.7),
+        0 0 18px rgba(251, 191, 36, 0.4),
+        0 0 30px rgba(251, 191, 36, 0.25),
+        0 0 50px rgba(253, 224, 71, 0.15);
+    }
+    66% {
+      text-shadow:
+        0 0 6px rgba(251, 191, 36, 0.5),
+        0 0 14px rgba(251, 191, 36, 0.35),
+        0 0 24px rgba(251, 191, 36, 0.2),
+        0 0 40px rgba(253, 224, 71, 0.1);
+    }
+  }
+  .golden-shimmer {
+    animation: golden-shimmer 1.8s ease-in-out infinite;
+  }
   .dark .cli-app-linked-chip::after {
     background: linear-gradient(
       90deg,

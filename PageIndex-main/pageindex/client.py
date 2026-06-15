@@ -46,6 +46,8 @@ class PageIndexClient:
         opt = ConfigLoader().load(overrides or None)
         self.model = opt.model
         self.retrieve_model = _normalize_retrieve_model(opt.retrieve_model or self.model)
+        self.if_add_node_summary = getattr(opt, 'if_add_node_summary', 'yes')
+        self.if_add_node_text = getattr(opt, 'if_add_node_text', 'yes')
         if self.workspace:
             self.workspace.mkdir(parents=True, exist_ok=True)
         self.documents = {}
@@ -71,8 +73,8 @@ class PageIndexClient:
             result = page_index(
                 doc=file_path,
                 model=self.model,
-                if_add_node_summary='yes',
-                if_add_node_text='yes',
+                if_add_node_summary=self.if_add_node_summary,
+                if_add_node_text=self.if_add_node_text,
                 if_add_node_id='yes',
                 if_add_doc_description='yes'
             )
@@ -99,11 +101,11 @@ class PageIndexClient:
             coro = md_to_tree(
                 md_path=file_path,
                 if_thinning=False,
-                if_add_node_summary='yes',
+                if_add_node_summary=self.if_add_node_summary,
                 summary_token_threshold=200,
                 model=self.model,
                 if_add_doc_description='yes',
-                if_add_node_text='yes',
+                if_add_node_text=self.if_add_node_text,
                 if_add_node_id='yes'
             )
             try:
@@ -156,9 +158,6 @@ class PageIndexClient:
 
     def _save_doc(self, doc_id: str):
         doc = self.documents[doc_id].copy()
-        # Strip text from structure nodes — redundant with pages (PDF only)
-        if doc.get('structure') and doc.get('type') == 'pdf':
-            doc['structure'] = remove_fields(doc['structure'], fields=['text'])
         path = self.workspace / f"{doc_id}.json"
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f, ensure_ascii=False, indent=2)

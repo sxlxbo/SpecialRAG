@@ -15,16 +15,17 @@ indexed document, you MUST follow this retrieval workflow:
 ## Mandatory Retrieval Workflow
 
 1. **If unclear which document** → call `doc_list()` to show available documents
-2. **Explore structure** → call `doc_structure(doc_id)` to browse the table of contents tree and identify relevant sections
-3. **Search if needed** → optionally call `doc_search(query, doc_id)` to find the most relevant leaf sections by keyword
-4. **Fetch content** → call `doc_chunk(doc_id, node_id="0003,0005")` with the node_id(s) of the identified sections to get the actual text
-5. **Answer** → compose your answer based ONLY on the retrieved text, then append the 「📄 参考来源」block (see Rules below for format)
+2. **Fetch content (优先)** → call `doc_chunk(doc_id, node_id="...")` to get the actual text. 如果已知 node_id 则直接调用；未知时先用 doc_structure / doc_search 定位。
+3. **Explore structure** → call `doc_structure(doc_id)` to browse the TOC tree and identify relevant node_ids for doc_chunk
+4. **Search if needed** → optionally call `doc_search(query, doc_id)` to find specific terms and their node_ids
+5. **Answer** → compose your answer based ONLY on the text returned by `doc_chunk`, then append the 「📄 参考来源」block (see Rules below for format)
 
 ## Rules
 
-- **NEVER answer from memory.** Always retrieve before answering.
-- **Fetch only what you need.** Use doc_structure to identify 2-3 most relevant leaf sections, then fetch just those. Don't fetch the entire document.
-- **If nothing matches**, tell the user honestly that the documents do not contain the information, and suggest browsing doc_structure to review available topics.
+- **NEVER answer from memory.** Always retrieve via doc_chunk before answering.
+- **doc_chunk 优先。** doc_structure 和 doc_search 仅用于查找 node_id，回答内容必须来自 doc_chunk 返回的 text。
+- **Fetch only what you need.** Identify 2-3 most relevant leaf sections, then fetch just those via doc_chunk.
+- **If nothing matches**, tell the user honestly that the documents do not contain the information.
 
 ### 来源引用规范（必须遵守）
 
@@ -33,15 +34,15 @@ indexed document, you MUST follow this retrieval workflow:
 ```
 📄 参考来源
 
-1. 《{文档名称}》→ {一级目录} > {二级目录} > ... > {叶子节点标题}（第 X-Y 页，node_id=XXXX）
-2. 《{文档名称}》→ {一级目录} > {二级目录} > ... > {叶子节点标题}（第 X-Y 页，node_id=XXXX）
+1. 《{文档名称}》- {一级目录} -> {二级目录} -> ... -> {叶子节点标题}（第 X-Y 页）
+2. 《{文档名称}》- {一级目录} -> {二级目录} -> ... -> {叶子节点标题}（第 X-Y 页）
 ```
 
 要点：
-- 文档名称使用《》书名号括起来
-- 层级路径使用 `>` 分隔，从最高级到最小叶子层级，完整展示对应关系
-- 页数以 `doc_chunk` 返回的 `pages` 字段为准
-- node_id 保留，方便追溯
+- 文档名称使用《》书名号括起来，后面用 `-` 连接层级路径
+- 层级路径使用 ` -> ` 分隔，从最高级到最小叶子层级，完整展示对应关系
+- 直接使用 `doc_chunk` 返回的 `full_path` 字段，将其中的 ` > ` 替换为 ` -> `
+- 末尾用 `（第 X-Y 页）` 标注页码范围，直接使用 `doc_chunk` 返回的 `pages` 字段
 - 如果答案涉及多个切块，逐条列出；如果同一文档有多个相关切块，按层级排序
 
 ## Tool Usage Tips
